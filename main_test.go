@@ -7,27 +7,32 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 )
 
+func testDBURL() string {
+	if v := os.Getenv("TEST_DB_URL"); v != "" {
+		return v
+	}
+	// fallback for local non-docker runs
+	return "postgres://program:test@localhost:5433/persons?sslmode=disable"
+}
+
 func stringPtr(s string) *string { return &s }
 func int32Ptr(i int32) *int32    { return &i }
 
 func setupTestDB(t *testing.T) *sql.DB {
-	testDBURL := "postgres://program:test@localhost:5433/persons?sslmode=disable"
-
-	db, err := sql.Open("postgres", testDBURL)
+	db, err := sql.Open("postgres", testDBURL())
 	if err != nil {
 		t.Fatalf("Failed to connect to test database: %v", err)
 	}
-
 	if err := db.Ping(); err != nil {
 		t.Fatalf("Failed to ping test database: %v", err)
 	}
-
 	createTableSQL := `
 	CREATE TABLE IF NOT EXISTS persons (
 		id SERIAL PRIMARY KEY,

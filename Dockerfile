@@ -6,8 +6,7 @@ RUN go mod download
 FROM deps AS tests
 WORKDIR /app
 COPY . .
-# Fail the build if tests fail
-RUN go test ./...
+CMD ["go","test","./...","-v"]
 
 FROM deps AS builder
 WORKDIR /app

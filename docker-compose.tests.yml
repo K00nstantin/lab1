@@ -1,8 +1,35 @@
 services:
+  postgres:
+    image: postgres:13
+    container_name: persons-db
+    environment:
+      POSTGRES_USER: program
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: persons
+    ports:
+      - "5433:5432" 
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U program -d persons"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [app-network]
+
   tests:
-    image: tests:latest
+    image: tests:latest 
     build:
       context: .
+      dockerfile: Dockerfile
       target: tests
-    working_dir: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TEST_DB_URL: "postgres://program:test@postgres:5432/persons?sslmode=disable"
+    networks: [app-network]
     command: go test ./... -v
+    restart: "no"
+
+networks:
+  app-network:
+    driver: bridge
