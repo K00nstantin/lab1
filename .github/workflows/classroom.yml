@@ -1,40 +1,41 @@
 name: GitHub Classroom Workflow
+
 on:
   push:
     branches:
       - master
-  pull_request:
-    branches:
-      - master
+
 jobs:
   build:
-    name: Autograding
+    name: Build Docker Images
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      # TODO build, test and deploy project
+      - name: Build Tests Image
+        run: |
+          docker build -t tests:latest -f ./Dockerfile . --target=tests
+          docker save tests:latest > tests.tar
 
-      - name: Run API Tests
-        uses: matt-ball/newman-action@master
+      - name: Build Release Image
+        run: |
+          docker build -t person_api:latest -f ./Dockerfile . --target=release
+          docker save person_api:latest > person_api.tar
+
+      - name: Upload Tests Artifact
+        uses: actions/upload-artifact@v4
         with:
-          collection: postman/[inst] Lab1.postman_collection.json
-          environment: postman/[inst][heroku] Lab1.postman_environment.json
-          delayRequest: 100
-          reporters: '[ "cli" ]'
+          name: tests-artifact
+          path: tests.tar
 
-      - name: Autograding
-        uses: education/autograding@v1
-        continue-on-error: true
-
-      - name: Github auto grader mark
-        uses: Romanow/google-sheet-autograder-marker@v1.0
+      - name: Upload API Artifact
+        uses: actions/upload-artifact@v4
         with:
-          google_token: ${{secrets.GOOGLE_API_KEY}}
-          sheet_id: "1xkgjUX6Qmk7rdJG-QPOToav-HWWtthJjnShIKnw3oIY"
-          homework_number: 1
-          user_column: 'D'
-          column_offset: 'F'
-          mark: "'+"
+          name: person_api-artifact
+          path: person_api.tar
+
+  
