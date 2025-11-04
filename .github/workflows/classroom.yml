@@ -21,21 +21,21 @@ jobs:
           docker build -t tests:latest -f ./Dockerfile . --target=tests
           docker save tests:latest > tests.tar
 
-      - name: Build Release Image
-        run: |
-          docker build -t person_api:latest -f ./Dockerfile . --target=release
-          docker save person_api:latest > person_api.tar
+      # - name: Build Release Image
+      #   run: |
+      #     docker build -t person_api:latest -f ./Dockerfile . --target=release
+      #     docker save person_api:latest > person_api.tar
 
-      - name: Upload Tests Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tests-artifact
-          path: tests.tar
+      # - name: Upload Tests Artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: tests-artifact
+      #     path: tests.tar
 
-      - name: Upload API Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: person_api-artifact
-          path: person_api.tar
+      # - name: Upload API Artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: person_api-artifact
+      #     path: person_api.tar
 
   

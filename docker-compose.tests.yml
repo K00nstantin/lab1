@@ -1,0 +1,8 @@
+services:
+  tests:
+    image: tests:latest
+    build:
+      context: .
+      target: tests
+    working_dir: /app
+    command: go test ./... -v
