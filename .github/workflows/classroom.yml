@@ -50,8 +50,8 @@ jobs:
       - name: Build tests image
         run: docker build -t tests:latest -f ./Dockerfile . --target=tests
 
-      - name: Run tests with docker-compose
-        run: docker-compose -f docker-compose.tests.yml up --abort-on-container-exit --exit-code-from tests
+      - name: Run tests with docker compose
+        run: docker compose -f docker-compose.tests.yml up --abort-on-container-exit --exit-code-from tests
 
   deploy:
     name: Deploy to Render
@@ -81,7 +81,6 @@ jobs:
 
       - name: Update Postman Environment
         run: |
-          # Получаем URL развернутого приложения (замените на ваш реальный URL)
           RENDER_URL="https://your-app-name.onrender.com"
           sed -i "s|\"value\": \".*\"|\"value\": \"$RENDER_URL/api/v1\"|g" "postman/[inst][heroku] Lab1.postman_environment.json"
 
