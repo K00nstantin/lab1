@@ -44,16 +44,14 @@ jobs:
     needs: build
 
     steps:
-      - name: Download Tests Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tests-artifact
-          path: .
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Load Image and Run Tests
-        run: |
-          docker load < tests.tar
-          docker run --rm tests:latest
+      - name: Build tests image
+        run: docker build -t tests:latest -f ./Dockerfile . --target=tests
+
+      - name: Run tests with docker-compose
+        run: docker-compose -f docker-compose.tests.yml up --abort-on-container-exit --exit-code-from tests
 
   deploy:
     name: Deploy to Render

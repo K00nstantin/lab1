@@ -18,7 +18,9 @@ func testDBURL() string {
 	if v := os.Getenv("TEST_DB_URL"); v != "" {
 		return v
 	}
-	// fallback for local non-docker runs
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		return "postgres://program:test@localhost:5432/persons?sslmode=disable"
+	}
 	return "postgres://program:test@localhost:5433/persons?sslmode=disable"
 }
 
