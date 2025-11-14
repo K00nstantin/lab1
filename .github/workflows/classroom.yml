@@ -79,37 +79,65 @@ jobs:
       - name: Wait for Render Deployment
         run: sleep 30
 
+      - name: Find Postman Files
+        run: |
+          echo "=== Searching for Postman files ==="
+          find . -name "*.json" -type f | grep -i postman || find . -name "*.json" -type f | head -10
+          echo "=== Current directory ==="
+          ls -la
+          if [ -d "postman" ]; then
+            echo "=== Postman directory contents ==="
+            ls -la postman/
+          fi
+
       - name: Update Postman Environment
         run: |
-          RENDER_URL="https://your-app-name.onrender.com"
+          # Определяем путь к файлу окружения
           if [ -f "postman/[inst][heroku] Lab1.postman_environment.json" ]; then
             ENV_FILE="postman/[inst][heroku] Lab1.postman_environment.json"
           elif [ -f "[inst][heroku] Lab1.postman_environment.json" ]; then
             ENV_FILE="[inst][heroku] Lab1.postman_environment.json"
+          elif [ -f "Lab1.postman_environment.json" ]; then
+            ENV_FILE="Lab1.postman_environment.json"
           else
-            echo "Postman environment file not found!"
-            exit 1
-          fi
-          echo "Updating Postman environment file: $ENV_FILE"
-          sed -i "s|\"value\": \".*\"|\"value\": \"$RENDER_URL/api/v1\"|g" "$ENV_FILE"
-
-      - name: Run API Tests
-        run: |
-          if [ -f "postman/lab1.postman_collection.json" ]; then
-            COLLECTION="postman/lab1.postman_collection.json"
-          elif [ -f "lab1.postman_collection.json" ]; then
-            COLLECTION="lab1.postman_collection.json"
-          else
-            echo "Postman collection file not found!"
+            echo "ERROR: Postman environment file not found!"
+            echo "Available JSON files:"
+            find . -name "*.json" -type f
             exit 1
           fi
           
+          echo "Updating Postman environment file: $ENV_FILE"
+          RENDER_URL="https://lab1-pxmk.onrender.com"
+          sed -i "s|\"value\": \".*\"|\"value\": \"$RENDER_URL/api/v1\"|g" "$ENV_FILE"
+          echo "Updated baseUrl to: $RENDER_URL/api/v1"
+
+      - name: Run API Tests
+        run: |
+          # Определяем путь к файлу коллекции
+          if [ -f "lab1.postman_collection.json" ]; then
+            COLLECTION="lab1.postman_collection.json"
+          elif [ -f "Lab1.postman_collection.json" ]; then
+            COLLECTION="Lab1.postman_collection.json"
+          elif [ -f "postman/lab1.postman_collection.json" ]; then
+            COLLECTION="postman/lab1.postman_collection.json"
+          elif [ -f "postman/Lab1.postman_collection.json" ]; then
+            COLLECTION="postman/Lab1.postman_collection.json"
+          else
+            echo "ERROR: Postman collection file not found!"
+            echo "Available JSON files:"
+            find . -name "*.json" -type f
+            exit 1
+          fi
+          
+          # Определяем путь к файлу окружения (дублируем для надежности)
           if [ -f "postman/[inst][heroku] Lab1.postman_environment.json" ]; then
             ENVIRONMENT="postman/[inst][heroku] Lab1.postman_environment.json"
           elif [ -f "[inst][heroku] Lab1.postman_environment.json" ]; then
             ENVIRONMENT="[inst][heroku] Lab1.postman_environment.json"
+          elif [ -f "Lab1.postman_environment.json" ]; then
+            ENVIRONMENT="Lab1.postman_environment.json"
           else
-            echo "Postman environment file not found!"
+            echo "ERROR: Postman environment file not found!"
             exit 1
           fi
           
