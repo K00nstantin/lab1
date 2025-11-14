@@ -53,7 +53,7 @@ jobs:
       - name: Run tests with docker compose
         run: docker compose -f docker-compose.tests.yml up --abort-on-container-exit --exit-code-from tests
 
-  deploy:
+      deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
     needs: tests
@@ -61,33 +61,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Download API Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: person_api-artifact
-          path: .
 
       - name: Deploy to Render
         uses: johnbeynon/render-deploy-action@v0.0.8
         with:
           service-id: ${{ secrets.RENDER_SERVICE_ID }}
           api-key: ${{ secrets.RENDER_API_KEY }}
-
-      - name: Wait for Render Deployment
-        run: sleep 30
-
-      - name: Update Postman Environment
-        run: |
-          RENDER_URL="https://your-app-name.onrender.com"
-          sed -i "s|\"value\": \".*\"|\"value\": \"$RENDER_URL/api/v1\"|g" "postman/[inst][heroku] Lab1.postman_environment.json"
-
-      - name: Run API Tests
-        uses: matt-ball/newman-action@master
-        with:
-          collection: postman/lab1.postman_collection.json
-          environment: postman/[inst][heroku] Lab1.postman_environment.json
-          delayRequest: 100
-          reporters: '[ "cli" ]'
