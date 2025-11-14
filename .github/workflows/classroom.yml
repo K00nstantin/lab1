@@ -77,7 +77,13 @@ jobs:
           api-key: ${{ secrets.RENDER_API_KEY }}
 
       - name: Wait for Render Deployment
-        run: sleep 30
+        run: sleep 60  # Увеличил время ожидания
+
+      - name: Health Check
+        run: |
+          RENDER_URL="https://lab1-pxmk.onrender.com"
+          echo "Testing application health at: $RENDER_URL/api/v1/persons"
+          curl -f "$RENDER_URL/api/v1/persons" || echo "Health check failed, but continuing..."
 
       - name: Update Postman Environment
         run: |
@@ -89,19 +95,22 @@ jobs:
           
           echo "Updating Postman environment file: $ENV_FILE"
           RENDER_URL="https://lab1-pxmk.onrender.com"
-          sed -i "s|\"value\": \".*\"|\"value\": \"$RENDER_URL/api/v1\"|g" "$ENV_FILE"
-          echo "Updated baseUrl to: $RENDER_URL/api/v1"
+          
+          # Правильное обновление - только домен
+          sed -i "s|\"value\": \".*\"|\"value\": \"$RENDER_URL\"|g" "$ENV_FILE"
+          echo "Updated baseUrl to: $RENDER_URL"
+          
+          # Проверяем результат
+          echo "=== Updated environment content ==="
+          grep -A2 -B2 "value" "$ENV_FILE" | head -5
 
       - name: Run API Tests
         run: |
-          # Используем точные пути из структуры вашего репозитория
           COLLECTION="postman/[inst] Lab1.postman_collection.json"
           ENVIRONMENT="postman/[inst][heroku] Lab1.postman_environment.json"
           
           if [ ! -f "$COLLECTION" ]; then
             echo "ERROR: Postman collection file not found at $COLLECTION!"
-            echo "Available JSON files:"
-            find . -name "*.json" -type f
             exit 1
           fi
           
