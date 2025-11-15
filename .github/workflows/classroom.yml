@@ -56,144 +56,53 @@ jobs:
       - name: Load Tests Image
         run: |
           docker load < tests.tar
-          echo "Tests image loaded successfully from artifact"
 
-      - name: Run tests with docker compose
+      - name: Run tests using existing docker-compose
         run: |
-          # Создаем временный docker-compose файл для CI
-          cat > docker-compose.ci.tests.yml << 'EOF'
-          version: '3.8'
+          docker compose up postgres -d
+          sleep 3
+          docker run --rm --network host -e DATABASE_URL="postgres://program:test@localhost:5433/persons?sslmode=disable" tests:latest
 
-          services:
-            postgres:
-              image: postgres:13
-              container_name: persons-db
-              environment:
-                POSTGRES_USER: program
-                POSTGRES_PASSWORD: test
-                POSTGRES_DB: persons
-              ports:
-                - "5433:5432"
-              healthcheck:
-                test: ["CMD-SHELL", "pg_isready -U program -d persons"]
-                interval: 5s
-                timeout: 3s
-                retries: 20
-              networks: [app-network]
-
-            tests:
-              image: tests:latest
-              container_name: persons-tests
-              depends_on:
-                postgres:
-                  condition: service_healthy
-              environment:
-                TEST_DB_URL: "postgres://program:test@postgres:5432/persons?sslmode=disable"
-              networks: [app-network]
-              command: go test ./... -v
-              restart: "no"
-
-          networks:
-            app-network:
-              driver: bridge
-          EOF
-
-          docker compose -f docker-compose.ci.tests.yml up --abort-on-container-exit --exit-code-from tests
-
-      - name: Cleanup test containers
+      - name: Cleanup
         if: always()
         run: |
-          docker compose -f docker-compose.ci.tests.yml down
+          docker compose down
 
   deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
     needs: tests
-    # Добавляем условие, чтобы деплой работал только при пуше в master
     if: github.ref == 'refs/heads/master'
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Download API Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: person_api-artifact
-          path: .
 
       - name: Install jq for JSON processing
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Update Configuration for Render
+      - name: Update Postman Environment for Render
         run: |
           RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
-          echo "Using Render URL: $RENDER_URL"
-          
-          # Обновляем OpenAPI спецификацию
-          if [ -f "./person-service.yaml" ]; then
-            sed -i "s|http://localhost:8080|$RENDER_URL|g" ./person-service.yaml
-            echo "✅ Updated OpenAPI host to: $RENDER_URL"
-          fi
-          
-          # Обновляем Postman environment
           ENV_FILE="postman/[inst][heroku] Lab1.postman_environment.json"
           if [ -f "$ENV_FILE" ]; then
             jq --arg url "$RENDER_URL" '(.values[] | select(.key == "baseUrl") | .value) = $url' "$ENV_FILE" > temp.json && mv temp.json "$ENV_FILE"
-            echo "✅ Updated Postman environment with Render URL: $RENDER_URL"
           fi
-
-      - name: Commit Configuration Updates
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add .
-          git commit -m "ci: Update configuration for Render deployment [skip ci]" || echo "No changes to commit"
-
-      - name: Push to Trigger Render Auto-Deploy
-        run: |
-          git push origin master
-          echo "🚀 Triggered Render auto-deploy from master branch"
 
       - name: Wait for Render Deployment
         run: |
           RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
-          echo "⏳ Waiting for Render to complete deployment..."
-          echo "📱 Application URL: $RENDER_URL"
-          
-          # Увеличиваем время ожидания для Render (может занимать до 10 минут)
-          for i in {1..30}; do
-            echo "Attempt $i/30: Checking application health..."
-            if curl -s -f "$RENDER_URL/api/v1/persons" > /dev/null; then
-              echo "✅ Render deployment completed successfully!"
-              echo "🎉 Application is now live at: $RENDER_URL"
-              break
+          sleep 30
+          for i in {1..5}; do
+            if curl -s -f --max-time 5 "$RENDER_URL/api/v1/persons" > /dev/null; then
+              exit 0
             else
-              if [ $i -eq 30 ]; then
-                echo "❌ Render deployment timed out after 15 minutes"
-                echo "💡 Check Render dashboard for deployment status: https://dashboard.render.com"
-                exit 1
-              fi
-              echo "⏳ Application not ready yet, waiting 30 seconds..."
-              sleep 30
+              sleep 10
             fi
           done
 
-      - name: Run API Tests against Render
-        uses: matt-ball/newman-action@master
-        with:
-          collection: postman/[inst] Lab1.postman_collection.json
-          environment: postman/[inst][heroku] Lab1.postman_environment.json
-          delayRequest: 100
-          reporters: '[ "cli" ]'
-
-      - name: Deployment Success
-        if: success()
+      - name: Run API Tests
         run: |
           RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
-          echo "🎉 Deployment to Render completed successfully!"
-          echo "📱 Application URL: $RENDER_URL"
-          echo "🔍 API documentation: $RENDER_URL/docs"
-          echo "👤 Health check: $RENDER_URL/api/v1/persons"
+          ENV_FILE="postman/[inst][heroku] Lab1.postman_environment.json"
+          npx newman run "postman/[inst] Lab1.postman_collection.json" -e "$ENV_FILE" --delay-request 100
