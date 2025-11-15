@@ -80,19 +80,20 @@ jobs:
 
       - name: Validate Render Configuration
         run: |
-          if [ -z "${{ secrets.RENDER_SERVER_ID }}" ]; then
-            echo "ERROR: RENDER_SERVER_ID secret is missing"
+          if [ -z "${{ secrets.RENDER_SERVICE_NAME }}" ]; then
+            echo "ERROR: RENDER_SERVICE_NAME secret is missing"
+            echo "Please add RENDER_SERVICE_NAME to GitHub secrets"
             exit 1
           fi
 
       - name: Update Postman Environment
         run: |
-          RENDER_URL="https://${{ secrets.RENDER_SERVER_ID }}.onrender.com"
+          RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
           ENV_FILE="postman/[inst][heroku] Lab1.postman_environment.json"
           sed -i "s|\"value\": \"[^\"]*\"|\"value\": \"$RENDER_URL\"|g" "$ENV_FILE"
 
       - name: Run API Tests
         run: |
-          RENDER_URL="https://${{ secrets.RENDER_SERVER_ID }}.onrender.com"
+          RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
           ENV_FILE="postman/[inst][heroku] Lab1.postman_environment.json"
           npx newman run "postman/[inst] Lab1.postman_collection.json" -e "$ENV_FILE" --delay-request 100
