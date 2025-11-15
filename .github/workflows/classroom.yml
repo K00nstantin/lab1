@@ -78,7 +78,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Validate Render Configuration
+      - name: Validate render Configuration
         run: |
           if [ -z "${{ secrets.RENDER_SERVICE_NAME }}" ]; then
             echo "ERROR: RENDER_SERVICE_NAME secret is missing"
@@ -97,3 +97,5 @@ jobs:
           RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
           ENV_FILE="postman/[inst][heroku] Lab1.postman_environment.json"
           npx newman run "postman/[inst] Lab1.postman_collection.json" -e "$ENV_FILE" --delay-request 100
+          
+          
