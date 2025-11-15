@@ -21,9 +21,9 @@ jobs:
           docker build -t tests:latest -f ./Dockerfile . --target=tests
           docker save tests:latest > tests.tar
 
-      - name: Build Runtime Image
+      - name: Build Release Image
         run: |
-          docker build -t person_api:latest -f ./Dockerfile . --target=runtime
+          docker build -t person_api:latest -f ./Dockerfile . --target=release
           docker save person_api:latest > person_api.tar
 
       - name: Upload Tests Artifact
@@ -32,78 +32,120 @@ jobs:
           name: tests-artifact
           path: tests.tar
 
+      - name: Upload API Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: person_api-artifact
+          path: person_api.tar
+
   tests:
     name: Run Unit Tests
     runs-on: ubuntu-latest
     needs: build
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
       - name: Download Tests Artifact
         uses: actions/download-artifact@v4
         with:
           name: tests-artifact
           path: .
 
-      - name: Load Tests Image
+      - name: List Files Before Tests
+        run: ls -la
+
+      - name: Load Image and Run Tests
         run: |
           docker load < tests.tar
-          echo "Tests image loaded successfully from artifact"
-
-      - name: Run tests with docker compose
-        run: docker compose -f docker-compose.tests.yml up --abort-on-container-exit --exit-code-from tests
+          docker run --rm tests:latest
 
   deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
     needs: tests
+    
+    if: github.ref == 'refs/heads/master'
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-      - name: Trigger Render Auto-deploy
-        run: |
-          echo "Сборка и тесты прошли успешно"
-          echo "Render автоматически задеплоит изменения из master ветки"
-          echo "Ожидаем завершения деплоя..."
-          sleep 30
+      - name: Download API Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: person_api-artifact
+          path: .
 
-      - name: Health Check
+      - name: List Files Before Deploy
+        run: ls -la
+
+      - name: Install jq for JSON processing
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Set OpenAPI Host for Render
         run: |
-          RENDER_URL="https://lab1-pxmk.onrender.com"
-          echo "Проверяем здоровье приложения: $RENDER_URL/api/v1/persons"
+          RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
+          sed -i "s|http://localhost:8080|$RENDER_URL|g" ./person-service.yaml
+          echo "Updated OpenAPI host to: $RENDER_URL"
+
+      - name: Set Postman baseUrl for Render
+        run: |
+          RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
+          ENV_FILE="postman/[inst][heroku] Lab1.postman_environment.json"
+          if [ -f "$ENV_FILE" ]; then
+            jq --arg url "$RENDER_URL" '(.values[] | select(.key == "baseUrl") | .value) = $url' "$ENV_FILE" > temp.json && mv temp.json "$ENV_FILE"
+            echo "Updated Postman environment with Render URL: $RENDER_URL"
+          else
+            echo "Postman environment file not found: $ENV_FILE"
+          fi
+
+      - name: Configure Git for Render Auto-Deploy
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "ci: Update configuration for Render deployment [skip ci]" || echo "No changes to commit"
+          git push origin master
+
+      - name: Wait for Render Auto-Deployment
+        run: |
+          RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
+          echo "Triggered Render auto-deploy from master branch"
+          echo "Waiting for Render to complete deployment..."
+          echo "Application URL: $RENDER_URL"
           
-          for i in {1..5}; do
-            if curl -f "$RENDER_URL/api/v1/persons"; then
-              echo "Приложение работает"
+          # Увеличиваем время ожидания для Render (может занимать до 10 минут)
+          for i in {1..30}; do
+            echo "Attempt $i/30: Checking application health..."
+            if curl -s -f "$RENDER_URL/api/v1/persons" > /dev/null; then
+              echo "Render deployment completed successfully!"
+              echo "Application is now live at: $RENDER_URL"
               break
             else
-              echo "Попытка $i: приложение еще не готово, ждем 15 секунд..."
-              sleep 15
+              if [ $i -eq 30 ]; then
+                echo "Render deployment timed out after 15 minutes"
+                echo "Check Render dashboard for deployment status: https://dashboard.render.com"
+                exit 1
+              fi
+              echo "Application not ready yet, waiting 30 seconds..."
+              sleep 30
             fi
           done
 
-      - name: Update Postman Environment
-        run: |
-          ENV_FILE="postman/[inst][heroku] Lab1.postman_environment.json"
-          RENDER_URL="https://lab1-pxmk.onrender.com"
-          
-          if [ -f "$ENV_FILE" ]; then
-            sed -i "s|\"value\": \".*\"|\"value\": \"$RENDER_URL\"|g" "$ENV_FILE"
-            echo "Updated Postman environment"
-          fi
+      - name: Run API Tests against Render
+        uses: matt-ball/newman-action@master
+        with:
+          collection: postman/[inst] Lab1.postman_collection.json
+          environment: postman/[inst][heroku] Lab1.postman_environment.json
+          delayRequest: 100
+          reporters: '[ "cli" ]'
 
-      - name: Run API Tests
+      - name: Deployment Success
+        if: success()
         run: |
-          COLLECTION="postman/[inst] Lab1.postman_collection.json"
-          ENVIRONMENT="postman/[inst][heroku] Lab1.postman_environment.json"
-          
-          if [ -f "$COLLECTION" ] && [ -f "$ENVIRONMENT" ]; then
-            echo "Running Postman tests against live API"
-            npx newman run "$COLLECTION" -e "$ENVIRONMENT" --delay-request 100
-          else
-            echo "Postman files not found, skipping API tests"
-          fi
+          RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
+          echo "Deployment to Render completed successfully!"
+          echo "Application URL: $RENDER_URL"
+          echo "API documentation: $RENDER_URL/docs"
+          echo "Health check: $RENDER_URL/api/v1/persons"
