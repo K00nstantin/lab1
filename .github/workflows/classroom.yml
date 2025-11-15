@@ -78,49 +78,31 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Verify Render Service Name
-        run: |
-          if [ -z "${{ secrets.RENDER_SERVICE_NAME }}" ]; then
-            echo "ERROR: RENDER_SERVICE_NAME secret is not set"
-            echo "Please add RENDER_SERVICE_NAME to GitHub secrets"
-            exit 1
-          fi
-          echo "RENDER_SERVICE_NAME is set"
-
       - name: Install jq for JSON processing
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Update Postman Environment for Render
         run: |
-          RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
+          RENDER_URL="https://${{ secrets.RENDER_SERVICE_ID }}.onrender.com"
           ENV_FILE="postman/[inst][heroku] Lab1.postman_environment.json"
           if [ -f "$ENV_FILE" ]; then
             jq --arg url "$RENDER_URL" '(.values[] | select(.key == "baseUrl") | .value) = $url' "$ENV_FILE" > temp.json && mv temp.json "$ENV_FILE"
-            echo "Updated Postman URL: $RENDER_URL"
-          else
-            echo "Postman environment file not found: $ENV_FILE"
-            exit 1
           fi
 
       - name: Wait for Render Deployment
         run: |
-          RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
-          echo "Checking Render deployment: $RENDER_URL"
+          RENDER_URL="https://${{ secrets.RENDER_SERVICE_ID }}.onrender.com"
           sleep 30
           for i in {1..5}; do
             if curl -s -f --max-time 5 "$RENDER_URL/api/v1/persons" > /dev/null; then
-              echo "Render deployment successful"
               exit 0
             else
               sleep 10
             fi
           done
-          echo "Render deployment check timeout"
-          exit 1
 
       - name: Run API Tests
         run: |
-          RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
+          RENDER_URL="https://${{ secrets.RENDER_SERVICE_ID }}.onrender.com"
           ENV_FILE="postman/[inst][heroku] Lab1.postman_environment.json"
-          echo "Running tests against: $RENDER_URL"
           npx newman run "postman/[inst] Lab1.postman_collection.json" -e "$ENV_FILE" --delay-request 100
