@@ -81,75 +81,19 @@ jobs:
       - name: Validate Render Configuration
         run: |
           if [ -z "${{ secrets.RENDER_SERVICE_NAME }}" ]; then
-            echo "ERROR: RENDER_SERVICE_NAME secret is missing or empty"
+            echo "ERROR: RENDER_SERVICE_NAME secret is missing"
+            echo "Please add RENDER_SERVICE_NAME to GitHub secrets"
             exit 1
           fi
-          
-          RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
-          echo "Render URL: $RENDER_URL"
-          
-          # Проверяем что имя сервиса не пустое
-          if [ "${{ secrets.RENDER_SERVICE_NAME }}" = "" ]; then
-            echo "ERROR: RENDER_SERVICE_NAME is empty"
-            exit 1
-          fi
-
-      - name: Diagnostic Checks
-        run: |
-          RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
-          
-          echo "=== DNS Diagnostic ==="
-          nslookup ${{ secrets.RENDER_SERVICE_NAME }}.onrender.com || echo "DNS lookup failed"
-          
-          echo "=== Network Diagnostic ==="
-          ping -c 3 ${{ secrets.RENDER_SERVICE_NAME }}.onrender.com || echo "Ping failed"
-          
-          echo "=== HTTP Diagnostic ==="
-          curl -I --connect-timeout 10 "$RENDER_URL" || echo "HTTP check failed"
 
       - name: Update Postman Environment
         run: |
           RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
           ENV_FILE="postman/[inst][heroku] Lab1.postman_environment.json"
-          
-          # Проверяем что файл существует
-          if [ ! -f "$ENV_FILE" ]; then
-            echo "ERROR: Postman environment file not found: $ENV_FILE"
-            ls -la postman/
-            exit 1
-          fi
-          
-          # Создаем backup и обновляем
-          cp "$ENV_FILE" "${ENV_FILE}.backup"
           sed -i "s|\"value\": \"[^\"]*\"|\"value\": \"$RENDER_URL\"|g" "$ENV_FILE"
-          
-          # Проверяем что замена произошла
-          echo "=== Updated Postman Environment ==="
-          grep "value" "$ENV_FILE"
-
-      - name: Wait for Render Deployment
-        run: |
-          RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
-          echo "Waiting for Render deployment: $RENDER_URL"
-          
-          # Даем больше времени для деплоя Render
-          for i in {1..12}; do
-            if curl -s -f --max-time 10 "$RENDER_URL/api/v1/persons" > /dev/null; then
-              echo "Application is ready"
-              exit 0
-            else
-              echo "Attempt $i/12: Application not ready, waiting 15 seconds..."
-              sleep 15
-            fi
-          done
-          
-          echo "WARNING: Application might still be deploying"
-          echo "Continuing with tests anyway..."
 
       - name: Run API Tests
         run: |
           RENDER_URL="https://${{ secrets.RENDER_SERVICE_NAME }}.onrender.com"
           ENV_FILE="postman/[inst][heroku] Lab1.postman_environment.json"
-          
-          echo "Running tests against: $RENDER_URL"
           npx newman run "postman/[inst] Lab1.postman_collection.json" -e "$ENV_FILE" --delay-request 100
