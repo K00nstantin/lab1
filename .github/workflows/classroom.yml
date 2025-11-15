@@ -31,12 +31,14 @@ jobs:
         with:
           name: tests-artifact
           path: tests.tar
+          retention-days: 1
 
-      - name: Upload API Artifact
+      - name: Upload Runtime Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: person_api-artifact
+          name: runtime-artifact
           path: person_api.tar
+          retention-days: 1
 
   tests:
     name: Run Unit Tests
@@ -44,11 +46,16 @@ jobs:
     needs: build
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Download Tests Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tests-artifact
+          path: .
 
-      - name: Build tests image
-        run: docker build -t tests:latest -f ./Dockerfile . --target=tests
+      - name: Load Tests Image
+        run: |
+          docker load < tests.tar
+          echo "Tests image loaded successfully"
 
       - name: Run tests with docker compose
         run: docker compose -f docker-compose.tests.yml up --abort-on-container-exit --exit-code-from tests
@@ -64,11 +71,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download API Artifact
+      - name: Download Runtime Artifact
         uses: actions/download-artifact@v4
         with:
-          name: person_api-artifact
+          name: runtime-artifact
           path: .
+
+      - name: Load Runtime Image
+        run: |
+          docker load < person_api.tar
+          echo "Runtime image loaded successfully"
 
       - name: Deploy to Render
         uses: johnbeynon/render-deploy-action@v0.0.8
@@ -77,11 +89,11 @@ jobs:
           api-key: ${{ secrets.RENDER_API_KEY }}
 
       - name: Wait for Render Deployment
-        run: sleep 60  
+        run: sleep 60
 
       - name: Health Check
         run: |
-          RENDER_URL="https://lab1-pxmk.onrender.com"
+          RENDER_URL="https://your-app-name.onrender.com"  # ЗАМЕНИТЕ на ваш URL
           echo "Testing application health at: $RENDER_URL/api/v1/persons"
           curl -f "$RENDER_URL/api/v1/persons" || echo "Health check failed, but continuing..."
 
@@ -94,13 +106,9 @@ jobs:
           fi
           
           echo "Updating Postman environment file: $ENV_FILE"
-          RENDER_URL="https://lab1-pxmk.onrender.com"
-          
+          RENDER_URL="https://your-app-name.onrender.com"  # ЗАМЕНИТЕ на ваш URL
           sed -i "s|\"value\": \".*\"|\"value\": \"$RENDER_URL\"|g" "$ENV_FILE"
           echo "Updated baseUrl to: $RENDER_URL"
-          
-          echo "=== Updated environment content ==="
-          grep -A2 -B2 "value" "$ENV_FILE" | head -5
 
       - name: Run API Tests
         run: |
