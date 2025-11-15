@@ -23,7 +23,7 @@ jobs:
 
       - name: Build Release Image
         run: |
-          docker build -t person_api:latest -f ./Dockerfile . --target=release
+          docker build -t person_api:latest -f ./Dockerfile . --target=runtime
           docker save person_api:latest > person_api.tar
 
       - name: Upload Tests Artifact
