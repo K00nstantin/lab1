@@ -102,7 +102,7 @@ jobs:
         run: |
           RENDER_URL="https://${{ secrets.RENDER_SERVER_ID }}.onrender.com"
           sleep 30
-          for i in {1..5}; do
+          for i in {1..15}; do
             if curl -s -f --max-time 5 "$RENDER_URL/api/v1/persons" > /dev/null; then
               exit 0
             else
